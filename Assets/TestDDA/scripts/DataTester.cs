@@ -30,7 +30,7 @@ public class DataTester : MonoBehaviour {
         for (int i = 0; i < 500; i++)
         {
             //On sauve le résultat
-            float diff = Random.Range(0, 1);
+            float diff = Random.Range(0.0f, 1.0f);
             DDADataManager.Attempt attempt = new DDADataManager.Attempt();
             attempt.Result = diff > 0.5 ? 1.0 : 0.0;
             attempt.Thetas = new double[1];

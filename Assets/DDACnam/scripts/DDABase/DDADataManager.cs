@@ -20,8 +20,19 @@ public abstract class DDADataManager
             if (other == null)
                 return false;
 
-            if (!Enumerable.SequenceEqual(Thetas, other.Thetas))
-                return false;
+            if(!(other.Thetas == null && Thetas == null))
+            {
+                if (other.Thetas == null)
+                    return false;
+                if (Thetas == null)
+                    return false;
+
+                double delta = 0;
+                for (int i = 0; i < Thetas.Length; i++)
+                    delta += System.Math.Abs(Thetas[i] - other.Thetas[i]);
+                if (delta / Thetas.Length > 0.00001)
+                    return false;
+            }
 
             if (Result != other.Result)
                 return false;
