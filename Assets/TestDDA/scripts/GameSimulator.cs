@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class GameSimulator : MonoBehaviour {
 
@@ -154,5 +155,10 @@ public class GameSimulator : MonoBehaviour {
             Dda.addLastAttempt(attempt);
         }
         
+    }
+    public void reloadScene()
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        SceneManager.LoadScene(scene.name);
     }
 }

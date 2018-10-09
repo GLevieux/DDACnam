@@ -90,7 +90,11 @@ public class DDAModel {
 
         //On met a jour le dernier theta en fonction des dats
         if(indepVars.Count > 0)
+        {
             PMLastTheta = indepVars[indepVars.Count - 1][0];
+            PMWonLastTime = depVars[depVars.Count - 1] > 0 ? true : false;
+        }
+            
 
         //Check if enough data to update LogReg
         if (attempts.Count < 10)
