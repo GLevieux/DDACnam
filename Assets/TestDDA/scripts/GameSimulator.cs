@@ -115,7 +115,29 @@ public class GameSimulator : MonoBehaviour {
         return false;
     }
 
+
+
     public void simulatePlayerTries(int nbtries)
+    {
+        simulatePlayerTries(nbtries, 0);
+    }
+
+    public void simulatePlayerTriesJunk(int nbtries)
+    {
+        simulatePlayerTries(nbtries, 1);
+    }
+
+    public void simulatePlayerTriesJunkWin(int nbtries)
+    {
+        simulatePlayerTries(nbtries, 2);
+    }
+
+    public void simulatePlayerTriesJunkFail(int nbtries)
+    {
+        simulatePlayerTries(nbtries, 3);
+    }
+
+    public void simulatePlayerTries(int nbtries, int junkDataType = 0)
     {
         for(int i=0;i< nbtries; i++)
         {
@@ -142,6 +164,13 @@ public class GameSimulator : MonoBehaviour {
             //On fait jouer
             bool win = playerPlays(diffParams.Theta);
 
+            if (junkDataType == 1)
+                win = Random.Range(0.0f, 1.0f) > 0.5;
+            if (junkDataType == 2)
+                win = true;
+            if (junkDataType == 3)
+                win = false;
+
             if (win)
                 Debug.Log("win !!");
             else
@@ -161,4 +190,6 @@ public class GameSimulator : MonoBehaviour {
         Scene scene = SceneManager.GetActiveScene();
         SceneManager.LoadScene(scene.name);
     }
+
+    
 }

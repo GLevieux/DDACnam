@@ -18,6 +18,7 @@ public class DDAModel {
     const int LRNbLastAttemptsToConsider = 150;
 
     //PMDelta model
+    bool PMInitialized = false;
     double PMLastTheta = 0;
     bool PMWonLastTime = false;
     double PMDeltaValue = 0.1;
@@ -52,6 +53,7 @@ public class DDAModel {
     {
         PMLastTheta = lastTheta;
         PMWonLastTime = wonLastTime;
+        PMInitialized = true;
     }
 
     /**
@@ -88,11 +90,12 @@ public class DDAModel {
         }
         data.LoadDataFromList(indepVars, depVars);
 
-        //On met a jour le dernier theta en fonction des dats
-        if(indepVars.Count > 0)
+        //On met a jour le dernier theta en fonction des datas si on ne l'a pas deja set
+        if(indepVars.Count > 0 && !PMInitialized)
         {
             PMLastTheta = indepVars[indepVars.Count - 1][0];
             PMWonLastTime = depVars[depVars.Count - 1] > 0 ? true : false;
+            PMInitialized = true;
         }
             
 
