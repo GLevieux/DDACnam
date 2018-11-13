@@ -354,6 +354,7 @@ MonoBehaviour:
   ChallengeId: UnknownChallenge
   ThetaStart: 0.2
   DoNotUpdateAccuracy: 0
+  Algorithm: 0
 --- !u!114 &350751176
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1444,7 +1445,7 @@ Prefab:
     - target: {fileID: 114211601065130010, guid: eb398212eee71dc4582d4160bc17f796,
         type: 2}
       propertyPath: PlayerId
-      value: PlayerTest015
+      value: PlayerTest017
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: eb398212eee71dc4582d4160bc17f796, type: 2}

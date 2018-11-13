@@ -23,6 +23,7 @@ public class DataTester : MonoBehaviour {
 
         Dda.setChallengeId(challengeId);
         Dda.setPlayerId(playerId);
+        
         Attempts.Clear();
 
         Debug.Log("Adding data to model, to make it save them");

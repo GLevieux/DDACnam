@@ -33,6 +33,9 @@ public class GameSimulator : MonoBehaviour {
     }
 
     // Update is called once per frame
+    //Blue for theta
+    //red / green for accuracy
+    //yellow for target difficulty
     void Update () {
 
         if(Thetas.Count > 0 && LineDrawersTheta.Count != Thetas.Count)
@@ -142,7 +145,8 @@ public class GameSimulator : MonoBehaviour {
         for(int i=0;i< nbtries; i++)
         {
             //Courbe de difficulté aléatoire, a remplacer par la courbe voulue
-            float nextDiff = Random.Range(0.0f, 1.0f); 
+            float nextDiff = Random.Range(0.0f, 1.0f);
+            nextDiff = 0.2f;
 
             //On demande au modèle de nous donner le bon paramètre theta en fonction de la proba voulue
             DDAModel.DiffParams diffParams = Dda.computeNewDiffParams(nextDiff);
@@ -151,13 +155,15 @@ public class GameSimulator : MonoBehaviour {
                       + "Difficulty : " + diffParams.TargetDiff + "\n"
                       + "Difficulty with explo : " + diffParams.TargetDiffWithExplo + "\n"
                       + "Theta : " + diffParams.Theta + "\n"
-                      + "Log Reg Used : " + diffParams.LRUsed + "\n"
+                      + "Algorithm Wanted : " + diffParams.AlgorithmWanted + "\n"
+                      + "Algorithm used : " + diffParams.AlgorithmActuallyUsed + "\n"
+                      + "Log Reg Ready : " + diffParams.LogRegReady + "\n"
                       + "Log Reg Accuracy : " + diffParams.LRAccuracy + "\n"
                       + "Nb Attempts Used : " + diffParams.NbAttemptsUsedToCompute + "\n");
 
             Thetas.Add(diffParams.Theta);
             Accuracies.Add(diffParams.LRAccuracy);
-            Used.Add(diffParams.LRUsed);
+            Used.Add(diffParams.LogRegReady);
             TargetDiff.Add(diffParams.TargetDiffWithExplo);
 
 

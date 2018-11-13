@@ -25,14 +25,25 @@ public class DDAModel {
     float PMDeltaExploMin = 0.5f;
     float PMDeltaExploMax = 1.0f;
 
+    public enum DDAAlgorithm
+    {
+        DDA_LOGREG, //Utilise la regression logistique (si modèle calibré, sinon PM_DELTA)
+        DDA_PMDELTA, //Si on gagne, theta monte, si on perds, theta descend
+        DDA_RANDOM //Choisit un theta random
+    };
+
+    DDAAlgorithm Algorithm = DDAAlgorithm.DDA_LOGREG;
+    
     public struct DiffParams
     {
         public double TargetDiff;
         public double TargetDiffWithExplo;
-        public bool LRUsed;
+        public bool LogRegReady;
         public double LRAccuracy;
         public double Theta;
         public int NbAttemptsUsedToCompute;
+        public DDAAlgorithm AlgorithmActuallyUsed;
+        public DDAAlgorithm AlgorithmWanted;
     }
 
     /**
@@ -43,6 +54,14 @@ public class DDAModel {
         DataManager = dataManager;
         PlayerId = playerId;
         ChallengeId = challengeId;
+    }
+
+    /**
+     * Allows to specify which difficulty adaptation algorithm we want the model to use (see enum description)
+     */
+    public void setDdaAlgorithm(DDAAlgorithm algorithm)
+    {
+        Algorithm = algorithm;
     }
 
     /**
@@ -74,7 +93,8 @@ public class DDAModel {
     public DiffParams computeNewDiffParams(double targetDifficulty, bool doNotUpdateLRAccuracy = false)
     {
         DiffParams diffParams = new DiffParams();
-        diffParams.LRUsed = true;
+        diffParams.LogRegReady = true;
+        diffParams.AlgorithmWanted = Algorithm;
 
         //Loading data
         List<DDADataManager.Attempt> attempts = DataManager.getAttempts(PlayerId, ChallengeId, LRNbLastAttemptsToConsider);
@@ -102,8 +122,8 @@ public class DDAModel {
         //Check if enough data to update LogReg
         if (attempts.Count < 10)
         {
-            Debug.Log("Less than 10 attempts, will not use LogReg prediciton");
-            diffParams.LRUsed = false;
+            Debug.Log("Less than 10 attempts, can not use LogReg prediciton");
+            diffParams.LogRegReady = false;
         }
         else
         {
@@ -122,11 +142,11 @@ public class DDAModel {
             if (nbFail <= 3 || nbWin <= 3)
             {
                 Debug.Log("Less than 4 wins or 4 fails, will not use LogReg");
-                diffParams.LRUsed = false;
+                diffParams.LogRegReady = false;
             }
         }
 
-        if (diffParams.LRUsed)
+        if (diffParams.LogRegReady)
         {
             //Debug.Log("Using " + data.DepVar.Length + " lines to update model");
 
@@ -215,28 +235,68 @@ public class DDAModel {
             if (LRAccuracy < LRMinimalAccuracy)
             {
                 Debug.Log("LogReg accuracy is under "+ LRMinimalAccuracy + ", not using LogReg");
-                diffParams.LRUsed = false;
+                diffParams.LogRegReady = false;
             }
         }
 
-        //Determining theta
-
-        //If regression is not available, following PM delta algorithm
+        //Daving params
         diffParams.TargetDiff = targetDifficulty;
         diffParams.LRAccuracy = LRAccuracy;
-        if (!diffParams.LRUsed)
+
+        //Determining theta
+
+        //If we want pmdelta or we want log reg but it's not available
+        if ((Algorithm == DDAAlgorithm.DDA_LOGREG && !diffParams.LogRegReady) || 
+             Algorithm == DDAAlgorithm.DDA_PMDELTA)
         {
-            diffParams.TargetDiffWithExplo = 0.5;
-            diffParams.TargetDiff = 0.5;
             double delta = PMWonLastTime ? PMDeltaValue : -PMDeltaValue;
             delta *= Random.Range(PMDeltaExploMin, PMDeltaExploMax);
             diffParams.Theta = PMLastTheta + delta;
+            diffParams.AlgorithmActuallyUsed = DDAAlgorithm.DDA_PMDELTA;
+
+            //If regression is okay, we can tell the difficulty for this theta
+            if (diffParams.LogRegReady)
+            {
+                double[] pars = new double[1];
+                pars[0] = diffParams.Theta;
+                diffParams.TargetDiff = 1.0 - LogReg.Predict(pars);
+                diffParams.TargetDiffWithExplo = diffParams.TargetDiff;
+            }
+            else //Otherwise we just can tell we aim for 0.5
+            {
+                diffParams.TargetDiffWithExplo = 0.5;
+                diffParams.TargetDiff = 0.5;
+            }
         }
-        else //Otherwise use Logistic regression
+
+        //if we want log reg and it's available
+        if (Algorithm == DDAAlgorithm.DDA_LOGREG && diffParams.LogRegReady) 
         {
             diffParams.TargetDiffWithExplo = targetDifficulty + Random.Range(-LRExplo, LRExplo);
             diffParams.TargetDiffWithExplo = System.Math.Min(1.0, System.Math.Max(0, diffParams.TargetDiffWithExplo));
             diffParams.Theta = LogReg.InvPredict(1.0 - diffParams.TargetDiffWithExplo);
+            diffParams.AlgorithmActuallyUsed = DDAAlgorithm.DDA_LOGREG;
+        }
+
+        //If we want log reg and it's available
+        if (Algorithm == DDAAlgorithm.DDA_RANDOM)
+        {
+            diffParams.Theta = Random.Range(0.0f,1.0f);
+            diffParams.AlgorithmActuallyUsed = DDAAlgorithm.DDA_RANDOM;
+
+            //If regression is okay, we can tell the difficulty for this theta
+            if (diffParams.LogRegReady)
+            {
+                double[] pars = new double[1];
+                pars[0] = diffParams.Theta;
+                diffParams.TargetDiff = 1.0 - LogReg.Predict(pars);
+                diffParams.TargetDiffWithExplo = diffParams.TargetDiff;
+            }
+            else //Otherwise, we don't know, let's put a negative value
+            {
+                diffParams.TargetDiffWithExplo = -1;
+                diffParams.TargetDiff = -1;
+            }
         }
 
         //Clamp 01 double. Super inportant pour éviter les infinis
