@@ -2,25 +2,58 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class DDAModelUnityBridge : MonoBehaviour {
+public class DDAModelUnityBridge : MonoBehaviour
+{
 
-    DDAModel DdaModel;
+    public DDAModel DdaModel;
     public string PlayerId = "UnknownPlayer";
+    public string PlayerAge = "UnknownAge";
+    public string PlayerGender = "UnknownGender";
     public string ChallengeId = "UnknownChallenge";
     public float ThetaStart = 0.2f;
     public bool DoNotUpdateAccuracy = false;
     public DDAModel.DDAAlgorithm Algorithm;
-    
+
     public void setPlayerId(string playerId)
     {
         PlayerId = playerId;
         DdaModel.PlayerId = PlayerId;
     }
 
+    public void setPlayerAge(string playerAge)
+    {
+        PlayerAge = playerAge;
+    }
+
+    public void setPlayerGender(string playerGender)
+    {
+        PlayerGender = playerGender;
+    }
+
     public void setChallengeId(string challengeId)
     {
         ChallengeId = challengeId;
         DdaModel.ChallengeId = ChallengeId;
+    }
+
+    public string getPlayerId()
+    {
+        return PlayerId;
+    }
+
+    public string getPlayerAge()
+    {
+        return PlayerAge;
+    }
+
+    public string getPlayerGender()
+    {
+        return PlayerGender;
+    }
+
+    public string getChallengeId()
+    {
+        return ChallengeId;
     }
 
     public void setDDAAlgorithm(DDAModel.DDAAlgorithm algorithm)
@@ -32,9 +65,10 @@ public class DDAModelUnityBridge : MonoBehaviour {
     {
         DdaModel.setPMInit(lastTheta, wonLastTime);
     }
-        
-    void Awake () {
-        DdaModel  = new DDAModel(new DDADataManagerLocalCSV(), PlayerId, ChallengeId);
+
+    void Awake()
+    {
+        DdaModel = new DDAModel(new DDADataManagerLocalCSV(), PlayerId, ChallengeId);
         DdaModel.setDdaAlgorithm(Algorithm);
         initPMAlgorithm(ThetaStart);
     }
@@ -56,4 +90,3 @@ public class DDAModelUnityBridge : MonoBehaviour {
         return DdaModel.checkDataAgainst(attempts);
     }
 }
-

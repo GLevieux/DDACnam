@@ -2,17 +2,18 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class DDAModel {
+public class DDAModel
+{
 
     //Settings Data
     public string PlayerId;
-    public string ChallengeId;   
+    public string ChallengeId;
     DDADataManager DataManager;
-    
+
     //Log reg model
     LogisticRegression.ModelLR LogReg;
     const double LRMinimalAccuracy = 0.6;
-    double LRAccuracy = 0;
+    public double LRAccuracy = 0;
     float LRExplo = 0.05f;
     bool LRAccuracyUpToDate = false;
     const int LRNbLastAttemptsToConsider = 150;
@@ -29,11 +30,12 @@ public class DDAModel {
     {
         DDA_LOGREG, //Utilise la regression logistique (si modèle calibré, sinon PM_DELTA)
         DDA_PMDELTA, //Si on gagne, theta monte, si on perds, theta descend
-        DDA_RANDOM //Choisit un theta random
+        DDA_RANDOM_THETA, //Choisit un theta random
+        DDA_RANDOM_LOGREG //Choisit une diff random et en déduit le theta avec la logreg (sinon on fait random theta)
     };
 
     DDAAlgorithm Algorithm = DDAAlgorithm.DDA_LOGREG;
-    
+
     public struct DiffParams
     {
         public double TargetDiff;
@@ -44,6 +46,7 @@ public class DDAModel {
         public int NbAttemptsUsedToCompute;
         public DDAAlgorithm AlgorithmActuallyUsed;
         public DDAAlgorithm AlgorithmWanted;
+        public double[] Betas;
     }
 
     /**
@@ -95,6 +98,7 @@ public class DDAModel {
         DiffParams diffParams = new DiffParams();
         diffParams.LogRegReady = true;
         diffParams.AlgorithmWanted = Algorithm;
+        diffParams.Betas = null;
 
         //Loading data
         List<DDADataManager.Attempt> attempts = DataManager.getAttempts(PlayerId, ChallengeId, LRNbLastAttemptsToConsider);
@@ -103,7 +107,7 @@ public class DDAModel {
         LogisticRegression.DataLR data = new LogisticRegression.DataLR();
         List<double[]> indepVars = new List<double[]>();
         List<double> depVars = new List<double>();
-        foreach(DDADataManager.Attempt attempt in attempts)
+        foreach (DDADataManager.Attempt attempt in attempts)
         {
             indepVars.Add(attempt.Thetas);
             depVars.Add(attempt.Result);
@@ -111,13 +115,13 @@ public class DDAModel {
         data.LoadDataFromList(indepVars, depVars);
 
         //On met a jour le dernier theta en fonction des datas si on ne l'a pas deja set
-        if(indepVars.Count > 0 && !PMInitialized)
+        if (indepVars.Count > 0 && !PMInitialized)
         {
             PMLastTheta = indepVars[indepVars.Count - 1][0];
             PMWonLastTime = depVars[depVars.Count - 1] > 0 ? true : false;
             PMInitialized = true;
         }
-            
+
 
         //Check if enough data to update LogReg
         if (attempts.Count < 10)
@@ -174,7 +178,7 @@ public class DDAModel {
                 LRAccuracy /= 10;
 
                 LRAccuracyUpToDate = true;
-                
+
                 //Using all data to update model
                 LogReg = LogisticRegression.ComputeModel(data);
                 diffParams.NbAttemptsUsedToCompute = data.DepVar.Length;
@@ -234,7 +238,7 @@ public class DDAModel {
 
             if (LRAccuracy < LRMinimalAccuracy)
             {
-                Debug.Log("LogReg accuracy is under "+ LRMinimalAccuracy + ", not using LogReg");
+                Debug.Log("LogReg accuracy is under " + LRMinimalAccuracy + ", not using LogReg");
                 diffParams.LogRegReady = false;
             }
         }
@@ -246,7 +250,7 @@ public class DDAModel {
         //Determining theta
 
         //If we want pmdelta or we want log reg but it's not available
-        if ((Algorithm == DDAAlgorithm.DDA_LOGREG && !diffParams.LogRegReady) || 
+        if ((Algorithm == DDAAlgorithm.DDA_LOGREG && !diffParams.LogRegReady) ||
              Algorithm == DDAAlgorithm.DDA_PMDELTA)
         {
             double delta = PMWonLastTime ? PMDeltaValue : -PMDeltaValue;
@@ -270,7 +274,7 @@ public class DDAModel {
         }
 
         //if we want log reg and it's available
-        if (Algorithm == DDAAlgorithm.DDA_LOGREG && diffParams.LogRegReady) 
+        if (Algorithm == DDAAlgorithm.DDA_LOGREG && diffParams.LogRegReady)
         {
             diffParams.TargetDiffWithExplo = targetDifficulty + Random.Range(-LRExplo, LRExplo);
             diffParams.TargetDiffWithExplo = System.Math.Min(1.0, System.Math.Max(0, diffParams.TargetDiffWithExplo));
@@ -278,11 +282,20 @@ public class DDAModel {
             diffParams.AlgorithmActuallyUsed = DDAAlgorithm.DDA_LOGREG;
         }
 
-        //If we want log reg and it's available
-        if (Algorithm == DDAAlgorithm.DDA_RANDOM)
+        //if we want random log reg and it's available
+        if (Algorithm == DDAAlgorithm.DDA_RANDOM_LOGREG && diffParams.LogRegReady)
         {
-            diffParams.Theta = Random.Range(0.0f,1.0f);
-            diffParams.AlgorithmActuallyUsed = DDAAlgorithm.DDA_RANDOM;
+            diffParams.TargetDiff = Random.Range(0.0f, 1.0f);
+            diffParams.TargetDiffWithExplo = diffParams.TargetDiff; //Pas d'explo on est en random
+            diffParams.Theta = LogReg.InvPredict(1.0 - diffParams.TargetDiffWithExplo);
+            diffParams.AlgorithmActuallyUsed = DDAAlgorithm.DDA_RANDOM_LOGREG;
+        }
+
+        //If we want random
+        if (Algorithm == DDAAlgorithm.DDA_RANDOM_THETA || (Algorithm == DDAAlgorithm.DDA_RANDOM_LOGREG && !diffParams.LogRegReady))
+        {
+            diffParams.Theta = Random.Range(0.0f, 1.0f);
+            diffParams.AlgorithmActuallyUsed = DDAAlgorithm.DDA_RANDOM_THETA;
 
             //If regression is okay, we can tell the difficulty for this theta
             if (diffParams.LogRegReady)
@@ -299,6 +312,14 @@ public class DDAModel {
             }
         }
 
+        //Save betas if we have some
+        if (LogReg != null && LogReg.Betas != null && LogReg.Betas.Length > 0)
+        {
+            diffParams.Betas = new double[LogReg.Betas.Length];
+            for (int i = 0; i < LogReg.Betas.Length; i++)
+                diffParams.Betas[i] = LogReg.Betas[i];
+        }
+
         //Clamp 01 double. Super inportant pour éviter les infinis
         diffParams.Theta = diffParams.Theta > 1.0 ? 1.0 : diffParams.Theta;
         diffParams.Theta = diffParams.Theta < 0.0 ? 0.0 : diffParams.Theta;
@@ -312,11 +333,11 @@ public class DDAModel {
 
         bool isSame = true;
         int nbCheck = 0;
-        for(int i=0;i<attempts.Count;i++)
+        for (int i = 0; i < attempts.Count; i++)
         {
             if (i >= attempts.Count - LRNbLastAttemptsToConsider)
             {
-                if (!attempts[i].IsSame(attemptsSaved[i- (attempts.Count-LRNbLastAttemptsToConsider)]))
+                if (!attempts[i].IsSame(attemptsSaved[i - (attempts.Count - LRNbLastAttemptsToConsider)]))
                 {
                     Debug.LogError("Attempt " + i + " is corrupted");
                     isSame = false;
@@ -326,11 +347,10 @@ public class DDAModel {
 
         }
 
-        if(isSame)
-            Debug.Log("Data is ok, checked "+ nbCheck + " attempts (cache size)");
+        if (isSame)
+            Debug.Log("Data is ok, checked " + nbCheck + " attempts (cache size)");
 
         return isSame;
 
     }
 }
-
