@@ -58,7 +58,13 @@ public class DDAModelUnityBridge : MonoBehaviour
 
     public void setDDAAlgorithm(DDAModel.DDAAlgorithm algorithm)
     {
+        Algorithm = algorithm;
         DdaModel.setDdaAlgorithm(algorithm);
+    }
+
+    public DDAModel.DDAAlgorithm getDDAAlgorithm()
+    {
+        return Algorithm;
     }
 
     public void initPMAlgorithm(double lastTheta, bool wonLastTime = false)
@@ -78,7 +84,7 @@ public class DDAModelUnityBridge : MonoBehaviour
         DdaModel.addLastAttempt(attempt);
     }
 
-    public DDAModel.DiffParams computeNewDiffParams(double targetDifficulty, bool doNotUpdateLRAccuracy = false)
+    public DDAModel.DiffParams computeNewDiffParams(double targetDifficulty = 0, bool doNotUpdateLRAccuracy = false)
     {
         DdaModel.setDdaAlgorithm(Algorithm);
         return DdaModel.computeNewDiffParams(targetDifficulty, doNotUpdateLRAccuracy || DoNotUpdateAccuracy);

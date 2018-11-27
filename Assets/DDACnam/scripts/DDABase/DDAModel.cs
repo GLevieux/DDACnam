@@ -36,11 +36,26 @@ public class DDAModel
 
     DDAAlgorithm Algorithm = DDAAlgorithm.DDA_LOGREG;
 
+    public enum DDALogRegError
+    {
+        OK,
+        NOT_ENOUGH_SAMPLES,
+        NOT_ENOUGH_WINS,
+        NOT_ENOUGH_FAILS,
+        NEWTON_RAPHSON_ERROR,
+        ACCURACY_TOO_LOW,
+        SUM_ERROR_TOO_HIGH,
+        SD_PRED_TOO_LOW,
+        SUM_ERROR_IS_NAN,
+        SD_PRED_IS_NAN
+    };
+
     public struct DiffParams
     {
         public double TargetDiff;
         public double TargetDiffWithExplo;
         public bool LogRegReady;
+        public DDALogRegError LogRegError;
         public double LRAccuracy;
         public double Theta;
         public int NbAttemptsUsedToCompute;
@@ -99,6 +114,7 @@ public class DDAModel
         diffParams.LogRegReady = true;
         diffParams.AlgorithmWanted = Algorithm;
         diffParams.Betas = null;
+        diffParams.LogRegError = DDALogRegError.OK;
 
         //Loading data
         List<DDADataManager.Attempt> attempts = DataManager.getAttempts(PlayerId, ChallengeId, LRNbLastAttemptsToConsider);
@@ -122,12 +138,12 @@ public class DDAModel
             PMInitialized = true;
         }
 
-
         //Check if enough data to update LogReg
         if (attempts.Count < 10)
         {
             Debug.Log("Less than 10 attempts, can not use LogReg prediciton");
             diffParams.LogRegReady = false;
+            diffParams.LogRegError = DDALogRegError.NOT_ENOUGH_SAMPLES;
         }
         else
         {
@@ -147,6 +163,11 @@ public class DDAModel
             {
                 Debug.Log("Less than 4 wins or 4 fails, will not use LogReg");
                 diffParams.LogRegReady = false;
+
+                if (nbWin <= 3)
+                    diffParams.LogRegError = DDALogRegError.NOT_ENOUGH_WINS;
+                if (nbFail <= 3)
+                    diffParams.LogRegError = DDALogRegError.NOT_ENOUGH_FAILS;
             }
         }
 
@@ -182,52 +203,6 @@ public class DDAModel
                 //Using all data to update model
                 LogReg = LogisticRegression.ComputeModel(data);
                 diffParams.NbAttemptsUsedToCompute = data.DepVar.Length;
-
-                if (!LogReg.isUsable())
-                    LRAccuracy = 0;
-                else
-                {
-                    //Verifying if LogReg is ok : must be able to work in both ways 
-                    double errorSum = 0;
-                    double diffTest = 0.1;
-                    double[] pars = new double[1];
-                    double[] parsForAllDiff = new double[10];
-                    string res = "";
-                    for (int i = 0; i < 8; i++)
-                    {
-                        pars[0] = LogReg.InvPredict(diffTest, pars, 0); //on regarde que la première variable.
-                        parsForAllDiff[i] = pars[0];
-                        res = "D = " + diffTest + " par = " + pars[0];
-                        errorSum += System.Math.Abs(diffTest - LogReg.Predict(pars)); //On passe dans les deux sens on doit avoir pareil
-                        res += " res = " + LogReg.Predict(pars) + "\n";
-                        diffTest += 0.1;
-                        //Debug.Log(res);
-                    }
-
-                    if (errorSum > 1 || double.IsNaN(errorSum))
-                    {
-                        Debug.Log("Model is not solid, error = " + errorSum);
-                        LRAccuracy = 0;
-                    }
-
-                    //Verifying if LogReg is ok : sd of diff predictions in all theta range must not be 0
-                    double mean = 0;
-                    for (int i = 0; i < 8; i++)
-                        mean += parsForAllDiff[i];
-                    mean /= 8;
-                    double sd = 0;
-                    for (int i = 0; i < 8; i++)
-                        sd += (parsForAllDiff[i] - mean) * (parsForAllDiff[i] - mean);
-                    sd = System.Math.Sqrt(sd);
-
-                    //Debug.Log("Model parameter estimation sd = " + sd);
-
-                    if (sd < 0.05 || double.IsNaN(sd))
-                    {
-                        Debug.Log("Model parameter estimation is always the same : sd=" + sd);
-                        LRAccuracy = 0;
-                    }
-                }
             }
             else
             {
@@ -240,10 +215,69 @@ public class DDAModel
             {
                 Debug.Log("LogReg accuracy is under " + LRMinimalAccuracy + ", not using LogReg");
                 diffParams.LogRegReady = false;
+                diffParams.LogRegError = DDALogRegError.ACCURACY_TOO_LOW;
+            }
+
+            if (!LogReg.isUsable())
+            {
+                LRAccuracy = 0;
+                diffParams.LogRegError = DDALogRegError.NEWTON_RAPHSON_ERROR;
+            }
+            else if (diffParams.LogRegReady)
+            {   
+                //Verifying if LogReg is ok : must be able to work in both ways 
+                double errorSum = 0;
+                double diffTest = 0.1;
+                double[] pars = new double[1];
+                double[] parsForAllDiff = new double[10];
+                string res = "";
+                for (int i = 0; i < 8; i++)
+                {
+                    pars[0] = LogReg.InvPredict(diffTest, pars, 0); //on regarde que la première variable.
+                    parsForAllDiff[i] = pars[0];
+                    res = "D = " + diffTest + " par = " + pars[0];
+                    errorSum += System.Math.Abs(diffTest - LogReg.Predict(pars)); //On passe dans les deux sens on doit avoir pareil
+                    res += " res = " + LogReg.Predict(pars) + "\n";
+                    diffTest += 0.1;
+                    //Debug.Log(res);
+                }
+
+                if (errorSum > 1 || double.IsNaN(errorSum))
+                {
+                    Debug.Log("Model is not solid, error = " + errorSum);
+                    LRAccuracy = 0;
+                    if (errorSum > 1)
+                        diffParams.LogRegError = DDALogRegError.SUM_ERROR_TOO_HIGH;
+                    if (double.IsNaN(errorSum))
+                        diffParams.LogRegError = DDALogRegError.SUM_ERROR_IS_NAN;
+                }
+
+                //Verifying if LogReg is ok : sd of diff predictions in all theta range must not be 0
+                double mean = 0;
+                for (int i = 0; i < 8; i++)
+                    mean += parsForAllDiff[i];
+                mean /= 8;
+                double sd = 0;
+                for (int i = 0; i < 8; i++)
+                    sd += (parsForAllDiff[i] - mean) * (parsForAllDiff[i] - mean);
+                sd = System.Math.Sqrt(sd);
+
+                //Debug.Log("Model parameter estimation sd = " + sd);
+
+                if (sd < 0.05 || double.IsNaN(sd))
+                {
+                    Debug.Log("Model parameter estimation is always the same : sd=" + sd);
+                    LRAccuracy = 0;
+
+                    if (sd < 0.05)
+                        diffParams.LogRegError = DDALogRegError.SD_PRED_TOO_LOW;
+                    if (double.IsNaN(sd))
+                        diffParams.LogRegError = DDALogRegError.SD_PRED_IS_NAN;
+                }
             }
         }
 
-        //Daving params
+        //Saving params
         diffParams.TargetDiff = targetDifficulty;
         diffParams.LRAccuracy = LRAccuracy;
 
